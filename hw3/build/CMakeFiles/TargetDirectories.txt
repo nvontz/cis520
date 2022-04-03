@@ -1,0 +1,5 @@
+/homes/nvontz/cis520proj3/hw3/build/CMakeFiles/rebuild_cache.dir
+/homes/nvontz/cis520proj3/hw3/build/CMakeFiles/edit_cache.dir
+/homes/nvontz/cis520proj3/hw3/build/CMakeFiles/hw3_test.dir
+/homes/nvontz/cis520proj3/hw3/build/CMakeFiles/bitmap.dir
+/homes/nvontz/cis520proj3/hw3/build/CMakeFiles/block_store.dir
