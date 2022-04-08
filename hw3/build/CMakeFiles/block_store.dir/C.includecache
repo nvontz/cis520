@@ -21,6 +21,8 @@ stdlib.h
 -
 stdbool.h
 -
+bitmap.h
+../include/bitmap.h
 
 /homes/nvontz/cis520proj3/hw3/src/block_store.c
 stdio.h

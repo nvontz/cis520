@@ -8,21 +8,17 @@
 
 // You might find this handy.  I put it around unused parameters, but you should
 // remove it before you submit. Just allows things to compile initially.
-#define UNUSED(x) (void)(x)
-#define block_size 256
 
-typedef struct block_store
-{
-    char *data[block_size - 1][block_size - 1];
-    bitmap_t *bitmap;
-} block_store_t;
+/*
+
+*/
 
 block_store_t *block_store_create()
 {
     block_store_t *bs = malloc(sizeof(block_store_t));
     if (bs != NULL)
     {
-        bs->bitmap = bitmap_create(block_size - 1);
+        bs->bitmap = bitmap_create(BLOCK_SIZE_BYTES - 1);
         return bs;
     }
     return NULL;
@@ -40,35 +36,35 @@ size_t block_store_allocate(block_store_t *const bs)
 {
     if (bs == NULL)
         return SIZE_MAX;
+
     size_t fz = bitmap_ffz(bs->bitmap);
-    if (fz == SIZE_MAX || fz == block_size - 1)
+
+    if (fz > BLOCK_STORE_AVAIL_BLOCKS || fz == SIZE_MAX)
         return SIZE_MAX;
 
     bitmap_set(bs->bitmap, fz);
-
     return fz;
 }
 
 bool block_store_request(block_store_t *const bs, const size_t block_id)
 {
-    if (block_id > block_size - 1 || bs == NULL)
+    if (block_id > BLOCK_STORE_AVAIL_BLOCKS || bs == NULL || bs->bitmap == NULL)
         return false;
-
-    if (bitmap_test(bs->bitmap, block_id) == 1)
+    // check if used
+    if (bitmap_test(bs->bitmap, block_id))
         return false;
 
     bitmap_set(bs->bitmap, block_id);
 
-    if (bitmap_test(bs->bitmap, block_id) == 0)
-        return false;
-
-    return true;
+    return bitmap_test(bs->bitmap, block_id);
 }
 
 void block_store_release(block_store_t *const bs, const size_t block_id)
 {
-    if (bs != NULL)
-        bitmap_reset(bs->bitmap, block_id);
+    if (bs == NULL || block_id > BLOCK_STORE_AVAIL_BLOCKS)
+        return;
+
+    bitmap_reset(bs->bitmap, block_id);
 }
 
 size_t block_store_get_used_blocks(const block_store_t *const bs)
@@ -82,65 +78,55 @@ size_t block_store_get_free_blocks(const block_store_t *const bs)
 {
     if (bs == NULL)
         return SIZE_MAX;
-    return (block_size - 1) - bitmap_total_set(bs->bitmap);
+    return (block_store_get_total_blocks() - block_store_get_used_blocks(bs));
 }
 
 size_t block_store_get_total_blocks()
 {
-    return block_size - 1;
+    return BLOCK_STORE_AVAIL_BLOCKS;
 }
 
 size_t block_store_read(const block_store_t *const bs, const size_t block_id, void *buffer)
 {
 
-    if (bs == NULL || buffer == NULL || block_id > block_size - 1)
+    if (bs == NULL || buffer == NULL || block_id > BLOCK_STORE_NUM_BLOCKS)
         return 0;
-    memcpy(buffer, bs->data[block_id], block_size);
+    memcpy(buffer, bs->blocks, BLOCK_SIZE_BYTES);
 
-    return block_size;
+    return BLOCK_SIZE_BYTES;
 }
 
 size_t block_store_write(block_store_t *const bs, const size_t block_id, const void *buffer)
 {
-    if (bs == NULL || buffer == NULL || block_id > block_size - 1)
+    if (bs == NULL || buffer == NULL || block_id > BLOCK_STORE_NUM_BLOCKS)
         return 0;
-    memcpy(bs->data[block_id], buffer, block_size);
+    memcpy(bs->blocks, buffer, BLOCK_SIZE_BYTES);
 
-    return block_size;
+    return BLOCK_SIZE_BYTES;
 }
 
 block_store_t *block_store_deserialize(const char *const filename)
 {
-    if (filename) {
-        int fd = open(filename, O_RDONLY);
-        if (fd < 0) { // If the opening of the file fails
-            return 0;
-        }
-        block_store_t *bs = NULL;
-        bs = block_store_create(filename);
-        int read1, read2;
-        read1 = read(fd, bs->data, 65520*512);
-        read2 = read(fd, bs->bitmap, 65536/8);
-        if (read1 < 0 || read2 < 0) {
-            return 0;
-        }
-        return bs;
-    }
-    return 0;
+    if (filename == NULL)
+        return NULL;
+    FILE *fd = fopen(filename, "r");
+    if (fd == NULL)
+        return NULL;
+    block_store_t *bs = block_store_create();
+    fread(bs->blocks, BLOCK_SIZE_BYTES, BLOCK_STORE_NUM_BLOCKS, fd);
+    fclose(fd);
+    return bs;
 }
 
 size_t block_store_serialize(const block_store_t *const bs, const char *const filename)
 {
-    if (bs && filename) {
-        int fd = open(filename, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-        if (fd < 0) { // If the opening of the file fails
-            return 0;
-        }
-        write(fd, bs->data, 65520*512);
-        write(fd, bs->bitmap, 65536/8);
-        close(fd); // Close the file
-        size_t write_size = block_store_get_used_blocks(bs);
-        return (write_size*512);
-    }
-    return 0;    
+    if (bs == NULL || filename == NULL)
+        return 0;
+
+    FILE *fd = fopen(filename, "w");
+    // fwrite(bs->bitmap, BITMAP_SIZE_BYTES, 1, fd);
+    size_t blocks = fwrite(bs->blocks, BLOCK_SIZE_BYTES, BLOCK_STORE_NUM_BLOCKS, fd);
+    size_t write_size = blocks * BLOCK_SIZE_BYTES;
+    fclose(fd);
+    return write_size;
 }
