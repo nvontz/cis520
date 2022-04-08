@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 #include "bitmap.h"
@@ -110,13 +111,36 @@ size_t block_store_write(block_store_t *const bs, const size_t block_id, const v
 
 block_store_t *block_store_deserialize(const char *const filename)
 {
-    UNUSED(filename);
-    return NULL;
+    if (filename) {
+        int fd = open(filename, O_RDONLY);
+        if (fd < 0) { // If the opening of the file fails
+            return 0;
+        }
+        block_store_t *bs = NULL;
+        bs = block_store_create(filename);
+        int read1, read2;
+        read1 = read(fd, bs->data, 65520*512);
+        read2 = read(fd, bs->bitmap, 65536/8);
+        if (read1 < 0 || read2 < 0) {
+            return 0;
+        }
+        return bs;
+    }
+    return 0;
 }
 
 size_t block_store_serialize(const block_store_t *const bs, const char *const filename)
 {
-    UNUSED(bs);
-    UNUSED(filename);
-    return 0;
+    if (bs && filename) {
+        int fd = open(filename, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+        if (fd < 0) { // If the opening of the file fails
+            return 0;
+        }
+        write(fd, bs->data, 65520*512);
+        write(fd, bs->bitmap, 65536/8);
+        close(fd); // Close the file
+        size_t write_size = block_store_get_used_blocks(bs);
+        return (write_size*512);
+    }
+    return 0;    
 }
