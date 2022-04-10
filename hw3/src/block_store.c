@@ -2,6 +2,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include "bitmap.h"
 #include "block_store.h"
 // include more if you need
@@ -15,18 +19,25 @@
 
 block_store_t *block_store_create()
 {
-    block_store_t *bs = malloc(sizeof(block_store_t));
-    if (bs != NULL)
+    block_store_t *bs = calloc(1, sizeof(block_store_t));
+    if (bs == NULL)
+        return NULL;
+
+    bs->bitmap = bitmap_overlay(BLOCK_STORE_NUM_BLOCKS, &((bs->blocks)[BITMAP_START_BLOCK]));
+
+    uint32_t i;
+    for (i = BITMAP_START_BLOCK; i < (BITMAP_START_BLOCK + BITMAP_BLOCKS); i++)
     {
-        bs->bitmap = bitmap_create(BLOCK_SIZE_BYTES - 1);
-        return bs;
+        if (!block_store_request(bs, i))
+            return NULL;
     }
-    return NULL;
+
+    return bs;
 }
 
 void block_store_destroy(block_store_t *const bs)
 {
-    if (bs != NULL && bs->bitmap != NULL)
+    if (bs != NULL)
     {
         bitmap_destroy(bs->bitmap);
         free(bs);
@@ -50,7 +61,7 @@ bool block_store_request(block_store_t *const bs, const size_t block_id)
 {
     if (block_id > BLOCK_STORE_AVAIL_BLOCKS || bs == NULL || bs->bitmap == NULL)
         return false;
-    // check if used
+
     if (bitmap_test(bs->bitmap, block_id))
         return false;
 
@@ -78,7 +89,7 @@ size_t block_store_get_free_blocks(const block_store_t *const bs)
 {
     if (bs == NULL)
         return SIZE_MAX;
-    return (block_store_get_total_blocks() - block_store_get_used_blocks(bs));
+    return (BLOCK_STORE_AVAIL_BLOCKS - block_store_get_used_blocks(bs));
 }
 
 size_t block_store_get_total_blocks()
@@ -91,7 +102,7 @@ size_t block_store_read(const block_store_t *const bs, const size_t block_id, vo
 
     if (bs == NULL || buffer == NULL || block_id > BLOCK_STORE_NUM_BLOCKS)
         return 0;
-    memcpy(buffer, bs->blocks, BLOCK_SIZE_BYTES);
+    memcpy(buffer, &((bs->blocks)[block_id]), BLOCK_SIZE_BYTES);
 
     return BLOCK_SIZE_BYTES;
 }
@@ -100,43 +111,43 @@ size_t block_store_write(block_store_t *const bs, const size_t block_id, const v
 {
     if (bs == NULL || buffer == NULL || block_id > BLOCK_STORE_NUM_BLOCKS)
         return 0;
-    memcpy(bs->blocks, buffer, BLOCK_SIZE_BYTES);
+    memcpy(&((bs->blocks)[block_id]), buffer, BLOCK_SIZE_BYTES);
 
     return BLOCK_SIZE_BYTES;
 }
 
 block_store_t *block_store_deserialize(const char *const filename)
 {
-    if (filename) {
-        int fd = open(filename, O_RDONLY);
-        if (fd < 0) { // If the opening of the file fails
-            return 0;
-        }
-        block_store_t *bs = NULL;
-        bs = block_store_create(filename);
-        int read1, read2;
-        read1 = read(fd, bs->data, BLOCK_STORE_AVAIL_BLOCKS*BLOCK_SIZE_BYTES);
-        read2 = read(fd, bs->bitmap, BLOCK_STORE_NUM_BLOCKS/8);
-        if (read1 < 0 || read2 < 0) {
-            return 0;
-        }
-        return bs;
+    if (filename == NULL)
+        return NULL;
+
+    block_store_t *bs = block_store_create();
+
+    int file = open(filename, O_RDONLY);
+
+    if (file == -1)
+    {
+        block_store_destroy(bs);
+        return NULL;
     }
-    return 0;
+
+    read(file, bs->blocks, BLOCK_STORE_NUM_BYTES);
+    close(file);
+    return bs;
 }
 
 size_t block_store_serialize(const block_store_t *const bs, const char *const filename)
 {
-    if (bs && filename) {
-        int fd = open(filename, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-        if (fd < 0) { // If the opening of the file fails
-            return 0;
-        }
-        write(fd, bs->data, BLOCK_STORE_AVAIL_BLOCKS*BLOCK_SIZE_BYTES);
-        write(fd, bs->bitmap, BLOCK_STORE_NUM_BLOCKS/8);
-        close(fd); // Close the file
-        size_t write_size = block_store_get_used_blocks(bs);
-        return (write_size*BLOCK_SIZE_BYTES);
-    }
-    return 0; 
+    if (filename == NULL || bs == NULL)
+        return 0;
+
+    int file = open(filename, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+
+    if (file == -1)
+        return 0;
+
+    size_t writtenBytes = write(file, bs->blocks, BLOCK_STORE_NUM_BYTES);
+
+    close(file);
+    return writtenBytes;
 }
