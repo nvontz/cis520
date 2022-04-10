@@ -107,26 +107,36 @@ size_t block_store_write(block_store_t *const bs, const size_t block_id, const v
 
 block_store_t *block_store_deserialize(const char *const filename)
 {
-    if (filename == NULL)
-        return NULL;
-    FILE *fd = fopen(filename, "r");
-    if (fd == NULL)
-        return NULL;
-    block_store_t *bs = block_store_create();
-    fread(bs->blocks, BLOCK_SIZE_BYTES, BLOCK_STORE_NUM_BLOCKS, fd);
-    fclose(fd);
-    return bs;
+    if (filename) {
+        int fd = open(filename, O_RDONLY);
+        if (fd < 0) { // If the opening of the file fails
+            return 0;
+        }
+        block_store_t *bs = NULL;
+        bs = block_store_create(filename);
+        int read1, read2;
+        read1 = read(fd, bs->data, BLOCK_STORE_AVAIL_BLOCKS*BLOCK_SIZE_BYTES);
+        read2 = read(fd, bs->bitmap, BLOCK_STORE_NUM_BLOCKS/8);
+        if (read1 < 0 || read2 < 0) {
+            return 0;
+        }
+        return bs;
+    }
+    return 0;
 }
 
 size_t block_store_serialize(const block_store_t *const bs, const char *const filename)
 {
-    if (bs == NULL || filename == NULL)
-        return 0;
-
-    FILE *fd = fopen(filename, "w");
-    // fwrite(bs->bitmap, BITMAP_SIZE_BYTES, 1, fd);
-    size_t blocks = fwrite(bs->blocks, BLOCK_SIZE_BYTES, BLOCK_STORE_NUM_BLOCKS, fd);
-    size_t write_size = blocks * BLOCK_SIZE_BYTES;
-    fclose(fd);
-    return write_size;
+    if (bs && filename) {
+        int fd = open(filename, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+        if (fd < 0) { // If the opening of the file fails
+            return 0;
+        }
+        write(fd, bs->data, BLOCK_STORE_AVAIL_BLOCKS*BLOCK_SIZE_BYTES);
+        write(fd, bs->bitmap, BLOCK_STORE_NUM_BLOCKS/8);
+        close(fd); // Close the file
+        size_t write_size = block_store_get_used_blocks(bs);
+        return (write_size*BLOCK_SIZE_BYTES);
+    }
+    return 0; 
 }
