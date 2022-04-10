@@ -14,12 +14,13 @@
 // remove it before you submit. Just allows things to compile initially.
 
 /*
-
+Function that creates a new bs.
+Returns a pointer to the newly created bs.
+Returns NULL upon an error occurring. 
 */
-
 block_store_t *block_store_create()
 {
-    block_store_t *bs = calloc(1, sizeof(block_store_t));
+    block_store_t *bs = calloc(1, sizeof(block_store_t)); // Initialize the memory of the bs to 0's
     if (bs == NULL)
         return NULL;
 
@@ -35,6 +36,9 @@ block_store_t *block_store_create()
     return bs;
 }
 
+/*
+Function that destroys a given bs.
+*/
 void block_store_destroy(block_store_t *const bs)
 {
     if (bs != NULL)
@@ -43,6 +47,11 @@ void block_store_destroy(block_store_t *const bs)
         free(bs);
     }
 }
+
+/*
+Function that searches for a block not marked as in use (a free block), marking it as in use.
+Returns the id of the block and returns SIZE_MAX when an error occurs.
+*/
 size_t block_store_allocate(block_store_t *const bs)
 {
     if (bs == NULL)
@@ -57,6 +66,11 @@ size_t block_store_allocate(block_store_t *const bs)
     return fz;
 }
 
+/*
+Function that allocated a block given a block_id.
+Returns true upon a successful allocation.
+Return false upon an error occurring. 
+*/
 bool block_store_request(block_store_t *const bs, const size_t block_id)
 {
     if (block_id > BLOCK_STORE_AVAIL_BLOCKS || bs == NULL || bs->bitmap == NULL)
@@ -70,6 +84,9 @@ bool block_store_request(block_store_t *const bs, const size_t block_id)
     return bitmap_test(bs->bitmap, block_id);
 }
 
+/*
+Function that frees a specific block given a block_id. 
+*/
 void block_store_release(block_store_t *const bs, const size_t block_id)
 {
     if (bs == NULL || block_id > BLOCK_STORE_AVAIL_BLOCKS)
@@ -78,6 +95,9 @@ void block_store_release(block_store_t *const bs, const size_t block_id)
     bitmap_reset(bs->bitmap, block_id);
 }
 
+/*
+Function that returns the number of blocks being used and returns SIZE_MAX if an error occurs (i.e bs is NULL).
+*/
 size_t block_store_get_used_blocks(const block_store_t *const bs)
 {
     if (bs == NULL)
@@ -85,6 +105,10 @@ size_t block_store_get_used_blocks(const block_store_t *const bs)
     return bitmap_total_set(bs->bitmap);
 }
 
+/*
+Function that returns the number of free blocks and returns SIZE_MAX if an error occurs. 
+This is done by taking the available blocks - used blocks
+*/
 size_t block_store_get_free_blocks(const block_store_t *const bs)
 {
     if (bs == NULL)
@@ -92,11 +116,18 @@ size_t block_store_get_free_blocks(const block_store_t *const bs)
     return (BLOCK_STORE_AVAIL_BLOCKS - block_store_get_used_blocks(bs));
 }
 
+/*
+Function that returns the total number of available blocks.
+*/
 size_t block_store_get_total_blocks()
 {
     return BLOCK_STORE_AVAIL_BLOCKS;
 }
 
+/*
+Given a block_id, data is read from that location in the bs and then written to a buffer.
+Returns the total number of bytes read, and return 0 instead if an error occurs.
+*/
 size_t block_store_read(const block_store_t *const bs, const size_t block_id, void *buffer)
 {
 
@@ -107,6 +138,10 @@ size_t block_store_read(const block_store_t *const bs, const size_t block_id, vo
     return BLOCK_SIZE_BYTES;
 }
 
+/*
+Given a buffer, data is read and then written to a specific block_id location.
+Returns the total number of bytes written, and returns 0 instead if an error occurs.
+*/
 size_t block_store_write(block_store_t *const bs, const size_t block_id, const void *buffer)
 {
     if (bs == NULL || buffer == NULL || block_id > BLOCK_STORE_NUM_BLOCKS)
@@ -116,6 +151,10 @@ size_t block_store_write(block_store_t *const bs, const size_t block_id, const v
     return BLOCK_SIZE_BYTES;
 }
 
+/*
+Read the contents of a file and stores it into a newly created bs.
+Returns the newly created bs, but returns NULL if an error occurs.
+*/
 block_store_t *block_store_deserialize(const char *const filename)
 {
     if (filename == NULL)
@@ -136,6 +175,10 @@ block_store_t *block_store_deserialize(const char *const filename)
     return bs;
 }
 
+/*
+Writes the contents of the bs to a file and returns the total number of bytes written. 
+If there is already information in said file, the contents will be overwritten.
+*/
 size_t block_store_serialize(const block_store_t *const bs, const char *const filename)
 {
     if (filename == NULL || bs == NULL)
