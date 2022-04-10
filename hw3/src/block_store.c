@@ -16,20 +16,21 @@
 /*
 Function that creates a new bs.
 Returns a pointer to the newly created bs.
-Returns NULL upon an error occurring. 
+Returns NULL upon an error occurring.
 */
 block_store_t *block_store_create()
 {
     block_store_t *bs = calloc(1, sizeof(block_store_t)); // Initialize the memory of the bs to 0's
+
     if (bs == NULL)
         return NULL;
 
-    bs->bitmap = bitmap_overlay(BLOCK_STORE_NUM_BLOCKS, &((bs->blocks)[BITMAP_START_BLOCK]));
+    bs->bitmap = bitmap_overlay(BLOCK_STORE_NUM_BLOCKS, &((bs->blocks)[BITMAP_START_BLOCK])); // created bitmap
 
     uint32_t i;
     for (i = BITMAP_START_BLOCK; i < (BITMAP_START_BLOCK + BITMAP_BLOCKS); i++)
     {
-        if (!block_store_request(bs, i))
+        if (!block_store_request(bs, i)) // allocate each block for bitmap
             return NULL;
     }
 
@@ -43,8 +44,8 @@ void block_store_destroy(block_store_t *const bs)
 {
     if (bs != NULL)
     {
-        bitmap_destroy(bs->bitmap);
-        free(bs);
+        bitmap_destroy(bs->bitmap); // destroy bitmap
+        free(bs);                   // free memory
     }
 }
 
@@ -57,42 +58,42 @@ size_t block_store_allocate(block_store_t *const bs)
     if (bs == NULL)
         return SIZE_MAX;
 
-    size_t fz = bitmap_ffz(bs->bitmap);
+    size_t fz = bitmap_ffz(bs->bitmap); // Finds the first free block
 
-    if (fz > BLOCK_STORE_AVAIL_BLOCKS || fz == SIZE_MAX)
+    if (fz > BLOCK_STORE_AVAIL_BLOCKS || fz == SIZE_MAX) // check for to make sure zero is within range
         return SIZE_MAX;
 
-    bitmap_set(bs->bitmap, fz);
+    bitmap_set(bs->bitmap, fz); // sets the bit
     return fz;
 }
 
 /*
 Function that allocated a block given a block_id.
 Returns true upon a successful allocation.
-Return false upon an error occurring. 
+Return false upon an error occurring.
 */
 bool block_store_request(block_store_t *const bs, const size_t block_id)
 {
     if (block_id > BLOCK_STORE_AVAIL_BLOCKS || bs == NULL || bs->bitmap == NULL)
         return false;
 
-    if (bitmap_test(bs->bitmap, block_id))
+    if (bitmap_test(bs->bitmap, block_id)) // checks if already used
         return false;
 
-    bitmap_set(bs->bitmap, block_id);
+    bitmap_set(bs->bitmap, block_id); // sets bit on bitmap
 
     return bitmap_test(bs->bitmap, block_id);
 }
 
 /*
-Function that frees a specific block given a block_id. 
+Function that frees a specific block given a block_id.
 */
 void block_store_release(block_store_t *const bs, const size_t block_id)
 {
     if (bs == NULL || block_id > BLOCK_STORE_AVAIL_BLOCKS)
         return;
 
-    bitmap_reset(bs->bitmap, block_id);
+    bitmap_reset(bs->bitmap, block_id); // clears the bit
 }
 
 /*
@@ -102,18 +103,18 @@ size_t block_store_get_used_blocks(const block_store_t *const bs)
 {
     if (bs == NULL)
         return SIZE_MAX;
-    return bitmap_total_set(bs->bitmap);
+    return bitmap_total_set(bs->bitmap); // checks for blocks with set bit
 }
 
 /*
-Function that returns the number of free blocks and returns SIZE_MAX if an error occurs. 
+Function that returns the number of free blocks and returns SIZE_MAX if an error occurs.
 This is done by taking the available blocks - used blocks
 */
 size_t block_store_get_free_blocks(const block_store_t *const bs)
 {
     if (bs == NULL)
         return SIZE_MAX;
-    return (BLOCK_STORE_AVAIL_BLOCKS - block_store_get_used_blocks(bs));
+    return (BLOCK_STORE_AVAIL_BLOCKS - block_store_get_used_blocks(bs)); // gets unused blocks
 }
 
 /*
@@ -133,7 +134,7 @@ size_t block_store_read(const block_store_t *const bs, const size_t block_id, vo
 
     if (bs == NULL || buffer == NULL || block_id > BLOCK_STORE_NUM_BLOCKS)
         return 0;
-    memcpy(buffer, &((bs->blocks)[block_id]), BLOCK_SIZE_BYTES);
+    memcpy(buffer, &((bs->blocks)[block_id]), BLOCK_SIZE_BYTES); // copies pointer to buffer
 
     return BLOCK_SIZE_BYTES;
 }
@@ -146,7 +147,7 @@ size_t block_store_write(block_store_t *const bs, const size_t block_id, const v
 {
     if (bs == NULL || buffer == NULL || block_id > BLOCK_STORE_NUM_BLOCKS)
         return 0;
-    memcpy(&((bs->blocks)[block_id]), buffer, BLOCK_SIZE_BYTES);
+    memcpy(&((bs->blocks)[block_id]), buffer, BLOCK_SIZE_BYTES); // copies buffer to pointer
 
     return BLOCK_SIZE_BYTES;
 }
@@ -176,7 +177,7 @@ block_store_t *block_store_deserialize(const char *const filename)
 }
 
 /*
-Writes the contents of the bs to a file and returns the total number of bytes written. 
+Writes the contents of the bs to a file and returns the total number of bytes written.
 If there is already information in said file, the contents will be overwritten.
 */
 size_t block_store_serialize(const block_store_t *const bs, const char *const filename)
