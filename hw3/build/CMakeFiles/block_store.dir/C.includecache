@@ -33,6 +33,14 @@ stdint.h
 -
 string.h
 -
+sys/types.h
+-
+sys/stat.h
+-
+fcntl.h
+-
+unistd.h
+-
 bitmap.h
 /homes/nvontz/cis520proj3/hw3/src/bitmap.h
 block_store.h
